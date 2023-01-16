@@ -1,12 +1,7 @@
 import React from 'react';
 import { Card, Badge, Col, Stack, Button, Row } from 'react-bootstrap';
 
-
-
-
 export const Candidates = (props) => {
-
-
 return ( 
     <Row xs={1} md={3} className="g-4">
     {props.candidates.map((candidate)=> (
@@ -35,8 +30,6 @@ return (
          <Button variant="primary mt-2" onClick={() => props.vote(candidate.index)}>
               Vote for this candidate 1cUSD
              </Button>
-
-       
        </Card.Body>
      </Card>
    </Col>

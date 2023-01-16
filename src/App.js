@@ -9,10 +9,12 @@ import BigNumber from "bignumber.js";
 import devote from "./contracts/devote.abi.json";
 import IERC from "./contracts/IERC.abi.json";
 import { Voters } from './components/voters';
+import Spinner from 'react-bootstrap/Spinner';
 
 
 const ERC20_DECIMALS = 18;
-const contractAddress = "0x3456A620e67891a333F934584F332E4460F4E043";
+const contractAddress = "0x9b36359638CceF7e2867Cf4b2F680EB609B4dc47";
+// "0x3456A620e67891a333F934584F332E4460F4E043";
 const cUSDContractAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1";
 
 
@@ -24,6 +26,7 @@ function App() {
   const [cUSDBalance, setcUSDBalance] = useState(0);
   const [candidates, setCandidates] = useState([]);
   const [voters, setVoters] = useState([]);
+  const [loading, setLoading] = useState(false);
   
 
 
@@ -64,7 +67,7 @@ function App() {
 
 
   const getCandidates = useCallback(async () => {
-    const candidatesLength = await contract.methods.getCandidateLength().call();
+    const candidatesLength = await contract.methods.noOfcandidate().call();
     const candidates = [];
     for (let index = 0; index < candidatesLength; index++) {
       let _candidates = new Promise(async (resolve, reject) => {
@@ -108,14 +111,15 @@ function App() {
     _image,
     _description,
  
-  ) => {
-  
+  ) => {  
     try {
+      setLoading(true);
       await contract.methods
         .addCandidate(_address, _name, _age, _image, _description)
         .send({ from: address });
       getCandidates();
       getVotersList();
+      setLoading(false);
     } catch (error) {
       alert(error);
     }
@@ -124,10 +128,17 @@ function App() {
 
   const giveVotingRight = async (voterAddress) => { 
     try {
-      await contract.methods.giveVotingRight(voterAddress).send({ from: address });
-      getCandidates();
-      getVotersList();
-      alert("you have successfully given right to vote");
+      const voter = await contract.methods.voters(address).call();
+      if(!voter.allowed) {
+        setLoading(true);
+        await contract.methods.giveVotingRight(voterAddress).send({ from: address });
+        getCandidates();
+        getVotersList();
+        setLoading(false);
+        alert("you have successfully given right to vote");
+      } else {
+        alert("Voter already has voting right");
+      }
     } catch (error) {
       alert(error);
     }};
@@ -137,15 +148,44 @@ function App() {
   const vote = async (index) => {
     try {
       const cUSDContract = new kit.web3.eth.Contract(IERC, cUSDContractAddress);
-        let ammount = new BigNumber(1).shiftedBy(ERC20_DECIMALS).toString();
-      await cUSDContract.methods
-        .approve(contractAddress, ammount)
-        .send({ from: address });
-      await contract.methods.vote(index, ammount).send({ from: address });
-      getCandidates();
-      getVotersList();
-      getBalance();
-      alert("you have successfully voted for this candidate");
+      let ammount = new BigNumber(1).shiftedBy(ERC20_DECIMALS).toString();
+      const voter = await contract.methods.voters(address).call();
+      console.log(voter);
+      const candidates = await contract.methods.candidates(index).call();
+      console.log(candidates);
+
+      // const votes = await contract.methods.votes(address, candidates.candidateAddress).call();
+      // console.log(votes);
+      // check if voter has already voted for this candidate
+      // else if(votes) {
+      //   alert("Voter has already voted");
+      // }
+      
+      // check if voter has voting right
+      if(!voter.allowed) {
+        alert("Voter has no voting right");
+      }
+      // check if voter has already voted
+      else if(voter.voted) {
+        alert("Voter has already voted");
+      }
+      // check if candidate is the voter
+      else if (candidates.candidateAddress === address) {
+        alert("Candidate can't vote for themselves");
+      }
+      // else vote a candidate
+      else {
+        setLoading(true);
+        await cUSDContract.methods
+          .approve(contractAddress, ammount)
+          .send({ from: address });
+        await contract.methods.vote(index, ammount).send({ from: address });
+        getCandidates();
+        getVotersList();
+        getBalance();
+        setLoading(false);
+        alert("you have successfully voted for this candidate");
+      }
     } catch (error) {
       alert(error);
     }};
@@ -176,8 +216,16 @@ function App() {
       candidates={candidates}
       vote={vote} 
       walletAddress={address} 
-     
       />
+      {loading && (
+        <div className='d-flex flex-column justify-content-center align-items-center position-absolute top-0 start-0 w-100 h-100 bg-white opacity-75 zindex-1'>
+          <Spinner animation="border" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </Spinner>
+          <h1>Loading, please wait...</h1>
+        </div>
+        )
+      }
       
     </div>
   );
